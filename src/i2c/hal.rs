@@ -1,4 +1,4 @@
-use embedded_hal::i2c::{self, ErrorType, I2c as I2cHal, Operation as I2cOperation};
+use embedded_hal::i2c::{self, ErrorType, I2c as I2cHal, Operation as I2cOperation, Operation};
 
 use super::{Error, I2c};
 
@@ -108,10 +108,42 @@ impl I2cHal for I2c {
 
     fn transaction(
         &mut self,
-        _address: u8,
-        _operations: &mut [I2cOperation],
+        address: u8,
+        operations: &mut [I2cOperation],
     ) -> Result<(), Self::Error> {
-        unimplemented!()
+        let address = u16::from(address);
+        self.set_slave_address(address)?;
+
+        let mut last_operation: Option<&Operation> = None;
+        for operation in operations {
+            if let Some(last_op) = last_operation {
+                if std::mem::discriminant(last_op) != std::mem::discriminant(operation) {
+                    self.set_slave_address(address)?;
+                }
+            }
+
+            match operation {
+                Operation::Read(buffer) => {
+                    let buffer_len = buffer.len();
+                    let mut buf = vec![0; 1 + buffer_len].into_boxed_slice();
+                    let _read_bytes = self.read(&mut buf)?;
+                    if buf[0] != 1 {
+                        // TODO Throw correct error
+                        return Err(Error::FeatureNotSupported);
+                    }
+                    buffer.copy_from_slice(&buf[1..=buffer_len]);
+                }
+                Operation::Write(_data) => {
+                    // FIXME Untested, so throw.
+                    // self.write(data)?;
+                    unimplemented!();
+                }
+            }
+
+            last_operation = Some(operation)
+        }
+
+        Ok(())
     }
 
     fn transaction_iter<'a, O>(&mut self, address: u8, operations: O) -> Result<(), Self::Error>
