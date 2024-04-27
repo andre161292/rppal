@@ -1,3 +1,5 @@
+use std::io::ErrorKind;
+
 use embedded_hal::i2c::{self, ErrorType, I2c as I2cHal, Operation as I2cOperation, Operation};
 
 use super::{Error, I2c};
@@ -128,15 +130,15 @@ impl I2cHal for I2c {
                     let mut buf = vec![0; 1 + buffer_len].into_boxed_slice();
                     let _read_bytes = self.read(&mut buf)?;
                     if buf[0] != 1 {
-                        // TODO Throw correct error
-                        return Err(Error::FeatureNotSupported);
+                        return Err(Error::Io(std::io::Error::new(
+                            ErrorKind::InvalidData,
+                            "First byte wasn't '1'",
+                        )));
                     }
                     buffer.copy_from_slice(&buf[1..=buffer_len]);
                 }
                 Operation::Write(_data) => {
-                    // FIXME Untested, so throw.
-                    // self.write(data)?;
-                    unimplemented!();
+                    self.write(_data)?;
                 }
             }
 
